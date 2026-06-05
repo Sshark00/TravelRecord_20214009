@@ -1,3 +1,9 @@
 <resources>
     <string name="app_name">TravelRecord_20214009</string>
+    <string name="nav_travel">여행기록</string>
+    <string name="nav_favorite">즐겨찾기</string>
+    <string name="nav_map">지도</string>
+    <string name="travel_list_title">여행 기록</string>
+    <string name="favorite_list_title">즐겨찾기</string>
+    <string name="map_title">지도</string>
 </resources>
