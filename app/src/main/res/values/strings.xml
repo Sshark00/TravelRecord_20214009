@@ -6,4 +6,7 @@
     <string name="travel_list_title">여행 기록</string>
     <string name="favorite_list_title">즐겨찾기</string>
     <string name="map_title">지도</string>
+    <string name="travel_list_empty">등록된 여행 기록이 없습니다.</string>
+    <string name="thumbnail_desc">여행 대표 사진</string>
+    <string name="travel_item_clicked">%1$s</string>
 </resources>
