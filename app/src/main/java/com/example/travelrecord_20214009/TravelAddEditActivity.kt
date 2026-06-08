@@ -1,12 +1,20 @@
 package com.example.travelrecord_20214009
 
+import android.Manifest
 import android.app.DatePickerDialog
+import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
+import android.media.ExifInterface
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.widget.ImageView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.appbar.MaterialToolbar
@@ -30,8 +38,52 @@ class TravelAddEditActivity : AppCompatActivity() {
     private var isFavorite: Boolean = false
     private var latitude: Double = 0.0
     private var longitude: Double = 0.0
+    private var cameraPhotoFile: File? = null
 
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+
+    private val takePictureLauncher = registerForActivityResult(
+        ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success) {
+            cameraPhotoFile?.let { file ->
+                photoPath = file.absolutePath
+                extractGpsFromPath(photoPath)
+                bindPhoto()
+            }
+        } else {
+            Toast.makeText(this, R.string.error_camera_failed, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private val pickImageLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            handleGalleryImage(uri)
+        }
+    }
+
+    private val cameraPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            launchCamera()
+        } else {
+            Toast.makeText(this, R.string.error_permission_denied, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private val galleryPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val granted = permissions.values.all { it }
+        if (granted) {
+            launchGallery()
+        } else {
+            Toast.makeText(this, R.string.error_permission_denied, Toast.LENGTH_SHORT).show()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -53,6 +105,8 @@ class TravelAddEditActivity : AppCompatActivity() {
         etMemo = findViewById(R.id.et_memo)
         ivPhoto = findViewById(R.id.iv_photo)
         val btnSave = findViewById<MaterialButton>(R.id.btn_save)
+        val btnCamera = findViewById<MaterialButton>(R.id.btn_camera)
+        val btnGallery = findViewById<MaterialButton>(R.id.btn_gallery)
 
         toolbar.title = if (recordId > 0) {
             getString(R.string.edit_travel_title)
@@ -63,9 +117,123 @@ class TravelAddEditActivity : AppCompatActivity() {
 
         etDate.setOnClickListener { showDatePicker() }
         btnSave.setOnClickListener { saveRecord() }
+        btnCamera.setOnClickListener { requestCamera() }
+        btnGallery.setOnClickListener { requestGallery() }
 
         if (recordId > 0) {
             loadRecord()
+        }
+    }
+
+    private fun requestCamera() {
+        when {
+            ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+                == PackageManager.PERMISSION_GRANTED -> launchCamera()
+            else -> cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    private fun requestGallery() {
+        val permissions = mutableListOf<String>()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissions.add(Manifest.permission.READ_MEDIA_IMAGES)
+        } else {
+            permissions.add(Manifest.permission.READ_EXTERNAL_STORAGE)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            permissions.add(Manifest.permission.ACCESS_MEDIA_LOCATION)
+        }
+
+        val needRequest = permissions.any {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+
+        if (needRequest) {
+            galleryPermissionLauncher.launch(permissions.toTypedArray())
+        } else {
+            launchGallery()
+        }
+    }
+
+    private fun launchCamera() {
+        try {
+            val file = createImageFile()
+            cameraPhotoFile = file
+            val uri = FileProvider.getUriForFile(
+                this,
+                "${packageName}.fileprovider",
+                file
+            )
+            takePictureLauncher.launch(uri)
+        } catch (_: Exception) {
+            Toast.makeText(this, R.string.error_camera_failed, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun launchGallery() {
+        pickImageLauncher.launch("image/*")
+    }
+
+    private fun handleGalleryImage(uri: Uri) {
+        extractGpsFromUri(uri)
+
+        val savedPath = copyImageToInternalStorage(uri)
+        if (savedPath != null) {
+            photoPath = savedPath
+            if (latitude == 0.0 && longitude == 0.0) {
+                extractGpsFromPath(photoPath)
+            }
+            bindPhoto()
+        } else {
+            Toast.makeText(this, R.string.error_gallery_failed, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun createImageFile(): File {
+        val dir = File(filesDir, "images").apply { mkdirs() }
+        val fileName = "travel_${System.currentTimeMillis()}.jpg"
+        return File(dir, fileName)
+    }
+
+    private fun copyImageToInternalStorage(uri: Uri): String? {
+        return try {
+            val file = createImageFile()
+            contentResolver.openInputStream(uri)?.use { input ->
+                file.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            } ?: return null
+            file.absolutePath
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun extractGpsFromPath(path: String) {
+        try {
+            val exif = ExifInterface(path)
+            val latLong = FloatArray(2)
+            if (exif.getLatLong(latLong)) {
+                latitude = latLong[0].toDouble()
+                longitude = latLong[1].toDouble()
+            }
+        } catch (_: Exception) {
+            // GPS 정보 없음
+        }
+    }
+
+    private fun extractGpsFromUri(uri: Uri) {
+        try {
+            contentResolver.openInputStream(uri)?.use { input ->
+                val exif = ExifInterface(input)
+                val latLong = FloatArray(2)
+                if (exif.getLatLong(latLong)) {
+                    latitude = latLong[0].toDouble()
+                    longitude = latLong[1].toDouble()
+                }
+            }
+        } catch (_: Exception) {
+            // GPS 정보 없음
         }
     }
 
