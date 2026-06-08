@@ -36,6 +36,9 @@
             android:name=".TravelAddEditActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name=".TravelDetailActivity"
+            android:exported="false" />
     </application>
 
 </manifest>

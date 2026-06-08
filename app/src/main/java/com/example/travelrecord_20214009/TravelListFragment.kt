@@ -6,7 +6,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
-import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -60,11 +59,9 @@ class TravelListFragment : Fragment() {
     }
 
     private fun onTravelItemClick(record: TravelRecord) {
-        // Commit 5에서 TravelDetailActivity로 연결 예정
-        Toast.makeText(
-            requireContext(),
-            getString(R.string.travel_item_clicked, record.title),
-            Toast.LENGTH_SHORT
-        ).show()
+        val intent = Intent(requireContext(), TravelDetailActivity::class.java).apply {
+            putExtra(TravelDetailActivity.EXTRA_RECORD_ID, record.id)
+        }
+        startActivity(intent)
     }
 }
