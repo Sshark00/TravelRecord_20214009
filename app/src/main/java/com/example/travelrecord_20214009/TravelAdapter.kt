@@ -11,7 +11,8 @@ import java.io.File
 
 class TravelAdapter(
     private var records: List<TravelRecord>,
-    private val onItemClick: (TravelRecord) -> Unit
+    private val onItemClick: (TravelRecord) -> Unit,
+    private val onRegisterContextMenu: (View, TravelRecord) -> Unit
 ) : RecyclerView.Adapter<TravelAdapter.TravelViewHolder>() {
 
     class TravelViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
@@ -32,6 +33,8 @@ class TravelAdapter(
         holder.tvDate.text = record.date
         bindThumbnail(holder.ivThumbnail, record.photoPath)
         holder.itemView.setOnClickListener { onItemClick(record) }
+        holder.itemView.tag = record
+        onRegisterContextMenu(holder.itemView, record)
     }
 
     override fun getItemCount(): Int = records.size
