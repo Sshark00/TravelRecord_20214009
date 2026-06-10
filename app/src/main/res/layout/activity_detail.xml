@@ -90,10 +90,19 @@
                 tools:text="한라산 등반, 성산일출봉 방문" />
 
             <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_edit"
+                android:id="@+id/btn_favorite"
+                style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="24dp"
+                android:text="@string/btn_favorite_add"
+                app:icon="@drawable/ic_favorite_border" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_edit"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
                 android:text="@string/btn_edit" />
 
         </LinearLayout>

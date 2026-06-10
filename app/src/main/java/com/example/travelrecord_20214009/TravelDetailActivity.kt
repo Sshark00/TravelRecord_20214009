@@ -21,6 +21,7 @@ class TravelDetailActivity : AppCompatActivity() {
     private lateinit var tvTitle: TextView
     private lateinit var tvDate: TextView
     private lateinit var tvMemo: TextView
+    private lateinit var btnFavorite: MaterialButton
 
     private var recordId: Long = 0
 
@@ -49,6 +50,7 @@ class TravelDetailActivity : AppCompatActivity() {
         tvTitle = findViewById(R.id.tv_title)
         tvDate = findViewById(R.id.tv_date)
         tvMemo = findViewById(R.id.tv_memo)
+        btnFavorite = findViewById(R.id.btn_favorite)
         val btnEdit = findViewById<MaterialButton>(R.id.btn_edit)
 
         toolbar.setNavigationOnClickListener { finish() }
@@ -58,6 +60,7 @@ class TravelDetailActivity : AppCompatActivity() {
             }
             startActivity(intent)
         }
+        btnFavorite.setOnClickListener { toggleFavorite() }
 
         loadRecord()
     }
@@ -80,6 +83,29 @@ class TravelDetailActivity : AppCompatActivity() {
         tvDate.text = record.date
         tvMemo.text = record.memo.ifBlank { getString(R.string.memo_empty) }
         bindPhoto(record.photoPath)
+        updateFavoriteButton(record.isFavorite)
+    }
+
+    private fun toggleFavorite() {
+        dbHelper.toggleFavorite(recordId)
+        val record = dbHelper.getTravelById(recordId) ?: return
+        updateFavoriteButton(record.isFavorite)
+        val message = if (record.isFavorite) {
+            R.string.msg_favorite_added
+        } else {
+            R.string.msg_favorite_removed
+        }
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun updateFavoriteButton(isFavorite: Boolean) {
+        if (isFavorite) {
+            btnFavorite.text = getString(R.string.btn_favorite_remove)
+            btnFavorite.setIconResource(R.drawable.ic_favorite)
+        } else {
+            btnFavorite.text = getString(R.string.btn_favorite_add)
+            btnFavorite.setIconResource(R.drawable.ic_favorite_border)
+        }
     }
 
     private fun bindPhoto(photoPath: String) {

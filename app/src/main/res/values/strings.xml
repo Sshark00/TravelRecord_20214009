@@ -42,4 +42,9 @@
     <string name="dialog_delete_all_title">전체 삭제</string>
     <string name="dialog_delete_all_message">모든 여행 기록을 삭제하시겠습니까?</string>
     <string name="app_info_message">TravelRecord_20214009\n여행 계획 및 기록 앱\n20214009</string>
+    <string name="favorite_list_empty">즐겨찾기한 여행 기록이 없습니다.</string>
+    <string name="btn_favorite_add">즐겨찾기 추가</string>
+    <string name="btn_favorite_remove">즐겨찾기 해제</string>
+    <string name="msg_favorite_added">즐겨찾기에 추가되었습니다.</string>
+    <string name="msg_favorite_removed">즐겨찾기에서 해제되었습니다.</string>
 </resources>
