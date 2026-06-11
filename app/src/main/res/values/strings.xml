@@ -47,4 +47,5 @@
     <string name="btn_favorite_remove">즐겨찾기 해제</string>
     <string name="msg_favorite_added">즐겨찾기에 추가되었습니다.</string>
     <string name="msg_favorite_removed">즐겨찾기에서 해제되었습니다.</string>
+    <string name="map_empty">GPS 정보가 있는 여행 기록이 없습니다.</string>
 </resources>
