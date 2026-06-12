@@ -48,4 +48,7 @@
     <string name="msg_favorite_added">즐겨찾기에 추가되었습니다.</string>
     <string name="msg_favorite_removed">즐겨찾기에서 해제되었습니다.</string>
     <string name="map_empty">GPS 정보가 있는 여행 기록이 없습니다.</string>
+    <string name="error_save_failed">저장에 실패했습니다. 다시 시도해주세요.</string>
+    <string name="error_load_failed">데이터를 불러오지 못했습니다.</string>
+    <string name="error_map_unavailable">지도를 불러올 수 없습니다.</string>
 </resources>

@@ -5,6 +5,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import com.google.android.gms.maps.CameraUpdateFactory
@@ -38,7 +39,12 @@ class MapFragment : Fragment(), OnMapReadyCallback {
         dbHelper = DBHelper(requireContext())
         tvMapEmpty = view.findViewById(R.id.tv_map_empty)
 
-        val mapFragment = childFragmentManager.findFragmentById(R.id.map_fragment) as SupportMapFragment
+        val mapFragment = childFragmentManager.findFragmentById(R.id.map_fragment) as? SupportMapFragment
+        if (mapFragment == null) {
+            tvMapEmpty.text = getString(R.string.error_map_unavailable)
+            tvMapEmpty.visibility = View.VISIBLE
+            return
+        }
         mapFragment.getMapAsync(this)
     }
 
@@ -59,56 +65,61 @@ class MapFragment : Fragment(), OnMapReadyCallback {
         val map = googleMap ?: return
 
         viewLifecycleOwner.lifecycleScope.launch {
-            val travels = withContext(Dispatchers.IO) {
-                dbHelper.getTravelsWithLocation()
-            }
+            try {
+                val travels = withContext(Dispatchers.IO) {
+                    dbHelper.getTravelsWithLocation()
+                }
 
-            map.clear()
-            tvMapEmpty.visibility = if (travels.isEmpty()) View.VISIBLE else View.GONE
+                map.clear()
+                tvMapEmpty.visibility = if (travels.isEmpty()) View.VISIBLE else View.GONE
 
-            travels.forEach { travel ->
-                map.addMarker(
-                    MarkerOptions()
-                        .position(LatLng(travel.latitude, travel.longitude))
-                        .title(travel.title)
-                        .snippet(travel.date)
-                )
-            }
-
-            when {
-                travels.isEmpty() -> {
-                    map.moveCamera(
-                        CameraUpdateFactory.newLatLngZoom(LatLng(37.5665, 126.9780), 7f)
+                travels.forEach { travel ->
+                    map.addMarker(
+                        MarkerOptions()
+                            .position(LatLng(travel.latitude, travel.longitude))
+                            .title(travel.title)
+                            .snippet(travel.date)
                     )
                 }
-                travels.size == 1 -> {
-                    val travel = travels.first()
-                    map.moveCamera(
-                        CameraUpdateFactory.newLatLngZoom(
-                            LatLng(travel.latitude, travel.longitude),
-                            12f
-                        )
-                    )
-                }
-                else -> {
-                    val boundsBuilder = LatLngBounds.builder()
-                    travels.forEach { travel ->
-                        boundsBuilder.include(LatLng(travel.latitude, travel.longitude))
-                    }
-                    try {
+
+                when {
+                    travels.isEmpty() -> {
                         map.moveCamera(
-                            CameraUpdateFactory.newLatLngBounds(boundsBuilder.build(), 120)
+                            CameraUpdateFactory.newLatLngZoom(LatLng(37.5665, 126.9780), 7f)
                         )
-                    } catch (_: Exception) {
-                        val center = travels.first()
+                    }
+                    travels.size == 1 -> {
+                        val travel = travels.first()
                         map.moveCamera(
                             CameraUpdateFactory.newLatLngZoom(
-                                LatLng(center.latitude, center.longitude),
-                                8f
+                                LatLng(travel.latitude, travel.longitude),
+                                12f
                             )
                         )
                     }
+                    else -> {
+                        val boundsBuilder = LatLngBounds.builder()
+                        travels.forEach { travel ->
+                            boundsBuilder.include(LatLng(travel.latitude, travel.longitude))
+                        }
+                        try {
+                            map.moveCamera(
+                                CameraUpdateFactory.newLatLngBounds(boundsBuilder.build(), 120)
+                            )
+                        } catch (_: Exception) {
+                            val center = travels.first()
+                            map.moveCamera(
+                                CameraUpdateFactory.newLatLngZoom(
+                                    LatLng(center.latitude, center.longitude),
+                                    8f
+                                )
+                            )
+                        }
+                    }
                 }
+            } catch (_: Exception) {
+                tvMapEmpty.text = getString(R.string.error_load_failed)
+                tvMapEmpty.visibility = View.VISIBLE
             }
         }
     }

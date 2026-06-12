@@ -87,15 +87,23 @@ class TravelDetailActivity : AppCompatActivity() {
     }
 
     private fun toggleFavorite() {
-        dbHelper.toggleFavorite(recordId)
-        val record = dbHelper.getTravelById(recordId) ?: return
-        updateFavoriteButton(record.isFavorite)
-        val message = if (record.isFavorite) {
-            R.string.msg_favorite_added
-        } else {
-            R.string.msg_favorite_removed
+        try {
+            val updated = dbHelper.toggleFavorite(recordId)
+            if (updated <= 0) {
+                Toast.makeText(this, R.string.error_record_not_found, Toast.LENGTH_SHORT).show()
+                return
+            }
+            val record = dbHelper.getTravelById(recordId) ?: return
+            updateFavoriteButton(record.isFavorite)
+            val message = if (record.isFavorite) {
+                R.string.msg_favorite_added
+            } else {
+                R.string.msg_favorite_removed
+            }
+            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+        } catch (_: Exception) {
+            Toast.makeText(this, R.string.error_save_failed, Toast.LENGTH_SHORT).show()
         }
-        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
     }
 
     private fun updateFavoriteButton(isFavorite: Boolean) {
@@ -109,9 +117,18 @@ class TravelDetailActivity : AppCompatActivity() {
     }
 
     private fun bindPhoto(photoPath: String) {
-        if (photoPath.isNotBlank() && File(photoPath).exists()) {
-            ivPhoto.setImageBitmap(BitmapFactory.decodeFile(photoPath))
-        } else {
+        try {
+            if (photoPath.isNotBlank() && File(photoPath).exists()) {
+                val bitmap = BitmapFactory.decodeFile(photoPath)
+                if (bitmap != null) {
+                    ivPhoto.setImageBitmap(bitmap)
+                } else {
+                    ivPhoto.setImageResource(R.drawable.ic_photo_placeholder)
+                }
+            } else {
+                ivPhoto.setImageResource(R.drawable.ic_photo_placeholder)
+            }
+        } catch (_: Exception) {
             ivPhoto.setImageResource(R.drawable.ic_photo_placeholder)
         }
     }

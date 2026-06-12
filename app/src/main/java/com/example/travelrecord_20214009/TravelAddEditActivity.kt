@@ -77,8 +77,12 @@ class TravelAddEditActivity : AppCompatActivity() {
     private val galleryPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        val granted = permissions.values.all { it }
-        if (granted) {
+        val hasReadPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissions[Manifest.permission.READ_MEDIA_IMAGES] == true
+        } else {
+            permissions[Manifest.permission.READ_EXTERNAL_STORAGE] == true
+        }
+        if (hasReadPermission) {
             launchGallery()
         } else {
             Toast.makeText(this, R.string.error_permission_denied, Toast.LENGTH_SHORT).show()
@@ -255,9 +259,18 @@ class TravelAddEditActivity : AppCompatActivity() {
     }
 
     private fun bindPhoto() {
-        if (photoPath.isNotBlank() && File(photoPath).exists()) {
-            ivPhoto.setImageBitmap(BitmapFactory.decodeFile(photoPath))
-        } else {
+        try {
+            if (photoPath.isNotBlank() && File(photoPath).exists()) {
+                val bitmap = BitmapFactory.decodeFile(photoPath)
+                if (bitmap != null) {
+                    ivPhoto.setImageBitmap(bitmap)
+                } else {
+                    ivPhoto.setImageResource(R.drawable.ic_photo_placeholder)
+                }
+            } else {
+                ivPhoto.setImageResource(R.drawable.ic_photo_placeholder)
+            }
+        } catch (_: Exception) {
             ivPhoto.setImageResource(R.drawable.ic_photo_placeholder)
         }
     }
@@ -309,15 +322,24 @@ class TravelAddEditActivity : AppCompatActivity() {
             longitude = longitude
         )
 
-        if (recordId > 0) {
-            dbHelper.updateTravel(record)
-            Toast.makeText(this, R.string.msg_updated, Toast.LENGTH_SHORT).show()
-        } else {
-            dbHelper.insertTravel(record)
-            Toast.makeText(this, R.string.msg_saved, Toast.LENGTH_SHORT).show()
+        try {
+            if (recordId > 0) {
+                val updated = dbHelper.updateTravel(record)
+                if (updated <= 0) {
+                    throw IllegalStateException("update failed")
+                }
+                Toast.makeText(this, R.string.msg_updated, Toast.LENGTH_SHORT).show()
+            } else {
+                val insertedId = dbHelper.insertTravel(record)
+                if (insertedId <= 0) {
+                    throw IllegalStateException("insert failed")
+                }
+                Toast.makeText(this, R.string.msg_saved, Toast.LENGTH_SHORT).show()
+            }
+            finish()
+        } catch (_: Exception) {
+            Toast.makeText(this, R.string.error_save_failed, Toast.LENGTH_SHORT).show()
         }
-
-        finish()
     }
 
     companion object {

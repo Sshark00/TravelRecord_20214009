@@ -8,6 +8,7 @@ import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
@@ -89,13 +90,18 @@ class FavoriteFragment : Fragment() {
     private fun loadFavoriteList() {
         viewLifecycleOwner.lifecycleScope.launch {
             progressLoading.visibility = View.VISIBLE
-            val records = withContext(Dispatchers.IO) {
-                dbHelper.getFavoriteTravels()
+            try {
+                val records = withContext(Dispatchers.IO) {
+                    dbHelper.getFavoriteTravels()
+                }
+                adapter.updateList(records)
+                tvEmpty.visibility = if (records.isEmpty()) View.VISIBLE else View.GONE
+                recyclerView.visibility = if (records.isEmpty()) View.GONE else View.VISIBLE
+            } catch (_: Exception) {
+                Toast.makeText(requireContext(), R.string.error_load_failed, Toast.LENGTH_SHORT).show()
+            } finally {
+                progressLoading.visibility = View.GONE
             }
-            adapter.updateList(records)
-            tvEmpty.visibility = if (records.isEmpty()) View.VISIBLE else View.GONE
-            recyclerView.visibility = if (records.isEmpty()) View.GONE else View.VISIBLE
-            progressLoading.visibility = View.GONE
         }
     }
 
@@ -112,10 +118,14 @@ class FavoriteFragment : Fragment() {
             .setMessage(getString(R.string.dialog_delete_message, record.title))
             .setPositiveButton(R.string.btn_delete) { _, _ ->
                 viewLifecycleOwner.lifecycleScope.launch {
-                    withContext(Dispatchers.IO) {
-                        dbHelper.deleteTravel(record.id)
+                    try {
+                        withContext(Dispatchers.IO) {
+                            dbHelper.deleteTravel(record.id)
+                        }
+                        loadFavoriteList()
+                    } catch (_: Exception) {
+                        Toast.makeText(requireContext(), R.string.error_save_failed, Toast.LENGTH_SHORT).show()
                     }
-                    loadFavoriteList()
                 }
             }
             .setNegativeButton(R.string.btn_cancel, null)

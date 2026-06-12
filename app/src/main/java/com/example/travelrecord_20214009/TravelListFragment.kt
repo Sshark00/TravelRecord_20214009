@@ -10,6 +10,7 @@ import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.MenuProvider
@@ -134,13 +135,18 @@ class TravelListFragment : Fragment() {
     private fun loadTravelList() {
         viewLifecycleOwner.lifecycleScope.launch {
             progressLoading.visibility = View.VISIBLE
-            val records = withContext(Dispatchers.IO) {
-                dbHelper.getAllTravels(sortOrder)
+            try {
+                val records = withContext(Dispatchers.IO) {
+                    dbHelper.getAllTravels(sortOrder)
+                }
+                adapter.updateList(records)
+                tvEmpty.visibility = if (records.isEmpty()) View.VISIBLE else View.GONE
+                recyclerView.visibility = if (records.isEmpty()) View.GONE else View.VISIBLE
+            } catch (_: Exception) {
+                Toast.makeText(requireContext(), R.string.error_load_failed, Toast.LENGTH_SHORT).show()
+            } finally {
+                progressLoading.visibility = View.GONE
             }
-            adapter.updateList(records)
-            tvEmpty.visibility = if (records.isEmpty()) View.VISIBLE else View.GONE
-            recyclerView.visibility = if (records.isEmpty()) View.GONE else View.VISIBLE
-            progressLoading.visibility = View.GONE
         }
     }
 
@@ -156,8 +162,16 @@ class TravelListFragment : Fragment() {
             .setTitle(R.string.dialog_delete_title)
             .setMessage(getString(R.string.dialog_delete_message, record.title))
             .setPositiveButton(R.string.btn_delete) { _, _ ->
-                dbHelper.deleteTravel(record.id)
-                loadTravelList()
+                viewLifecycleOwner.lifecycleScope.launch {
+                    try {
+                        withContext(Dispatchers.IO) {
+                            dbHelper.deleteTravel(record.id)
+                        }
+                        loadTravelList()
+                    } catch (_: Exception) {
+                        Toast.makeText(requireContext(), R.string.error_save_failed, Toast.LENGTH_SHORT).show()
+                    }
+                }
             }
             .setNegativeButton(R.string.btn_cancel, null)
             .show()
@@ -168,8 +182,16 @@ class TravelListFragment : Fragment() {
             .setTitle(R.string.dialog_delete_all_title)
             .setMessage(R.string.dialog_delete_all_message)
             .setPositiveButton(R.string.btn_delete) { _, _ ->
-                dbHelper.deleteAllTravels()
-                loadTravelList()
+                viewLifecycleOwner.lifecycleScope.launch {
+                    try {
+                        withContext(Dispatchers.IO) {
+                            dbHelper.deleteAllTravels()
+                        }
+                        loadTravelList()
+                    } catch (_: Exception) {
+                        Toast.makeText(requireContext(), R.string.error_save_failed, Toast.LENGTH_SHORT).show()
+                    }
+                }
             }
             .setNegativeButton(R.string.btn_cancel, null)
             .show()
