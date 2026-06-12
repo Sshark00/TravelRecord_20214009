@@ -52,6 +52,8 @@ dependencies {
     implementation(libs.androidx.recyclerview)
     implementation(libs.androidx.fragment.ktx)
     implementation(libs.play.services.maps)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.kotlinx.coroutines.android)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)

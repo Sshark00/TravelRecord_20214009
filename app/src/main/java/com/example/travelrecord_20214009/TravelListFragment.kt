@@ -15,15 +15,20 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.MenuProvider
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.floatingactionbutton.FloatingActionButton
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class TravelListFragment : Fragment() {
 
     private lateinit var dbHelper: DBHelper
     private lateinit var recyclerView: RecyclerView
     private lateinit var tvEmpty: TextView
+    private lateinit var progressLoading: View
     private lateinit var adapter: TravelAdapter
 
     private var sortOrder = "${DBHelper.COL_DATE} DESC"
@@ -43,6 +48,7 @@ class TravelListFragment : Fragment() {
         dbHelper = DBHelper(requireContext())
         recyclerView = view.findViewById(R.id.recycler_travel)
         tvEmpty = view.findViewById(R.id.tv_empty)
+        progressLoading = view.findViewById(R.id.progress_loading)
 
         val toolbar = view.findViewById<MaterialToolbar>(R.id.toolbar)
         (requireActivity() as AppCompatActivity).setSupportActionBar(toolbar)
@@ -79,6 +85,7 @@ class TravelListFragment : Fragment() {
 
         adapter = TravelAdapter(
             records = emptyList(),
+            coroutineScope = viewLifecycleOwner.lifecycleScope,
             onItemClick = { record -> onTravelItemClick(record) },
             onRegisterContextMenu = { itemView, _ ->
                 registerForContextMenu(itemView)
@@ -125,10 +132,16 @@ class TravelListFragment : Fragment() {
     }
 
     private fun loadTravelList() {
-        val records = dbHelper.getAllTravels(sortOrder)
-        adapter.updateList(records)
-        tvEmpty.visibility = if (records.isEmpty()) View.VISIBLE else View.GONE
-        recyclerView.visibility = if (records.isEmpty()) View.GONE else View.VISIBLE
+        viewLifecycleOwner.lifecycleScope.launch {
+            progressLoading.visibility = View.VISIBLE
+            val records = withContext(Dispatchers.IO) {
+                dbHelper.getAllTravels(sortOrder)
+            }
+            adapter.updateList(records)
+            tvEmpty.visibility = if (records.isEmpty()) View.VISIBLE else View.GONE
+            recyclerView.visibility = if (records.isEmpty()) View.GONE else View.VISIBLE
+            progressLoading.visibility = View.GONE
+        }
     }
 
     private fun onTravelItemClick(record: TravelRecord) {

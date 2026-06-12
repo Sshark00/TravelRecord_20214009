@@ -10,13 +10,18 @@ import android.view.ViewGroup
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.RecyclerView
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class FavoriteFragment : Fragment() {
 
     private lateinit var dbHelper: DBHelper
     private lateinit var recyclerView: RecyclerView
     private lateinit var tvEmpty: TextView
+    private lateinit var progressLoading: View
     private lateinit var adapter: TravelAdapter
 
     private var contextRecord: TravelRecord? = null
@@ -35,9 +40,11 @@ class FavoriteFragment : Fragment() {
         dbHelper = DBHelper(requireContext())
         recyclerView = view.findViewById(R.id.recycler_favorite)
         tvEmpty = view.findViewById(R.id.tv_empty)
+        progressLoading = view.findViewById(R.id.progress_loading)
 
         adapter = TravelAdapter(
             records = emptyList(),
+            coroutineScope = viewLifecycleOwner.lifecycleScope,
             onItemClick = { record -> openDetail(record) },
             onRegisterContextMenu = { itemView, _ ->
                 registerForContextMenu(itemView)
@@ -80,10 +87,16 @@ class FavoriteFragment : Fragment() {
     }
 
     private fun loadFavoriteList() {
-        val records = dbHelper.getFavoriteTravels()
-        adapter.updateList(records)
-        tvEmpty.visibility = if (records.isEmpty()) View.VISIBLE else View.GONE
-        recyclerView.visibility = if (records.isEmpty()) View.GONE else View.VISIBLE
+        viewLifecycleOwner.lifecycleScope.launch {
+            progressLoading.visibility = View.VISIBLE
+            val records = withContext(Dispatchers.IO) {
+                dbHelper.getFavoriteTravels()
+            }
+            adapter.updateList(records)
+            tvEmpty.visibility = if (records.isEmpty()) View.VISIBLE else View.GONE
+            recyclerView.visibility = if (records.isEmpty()) View.GONE else View.VISIBLE
+            progressLoading.visibility = View.GONE
+        }
     }
 
     private fun openDetail(record: TravelRecord) {
@@ -98,8 +111,12 @@ class FavoriteFragment : Fragment() {
             .setTitle(R.string.dialog_delete_title)
             .setMessage(getString(R.string.dialog_delete_message, record.title))
             .setPositiveButton(R.string.btn_delete) { _, _ ->
-                dbHelper.deleteTravel(record.id)
-                loadFavoriteList()
+                viewLifecycleOwner.lifecycleScope.launch {
+                    withContext(Dispatchers.IO) {
+                        dbHelper.deleteTravel(record.id)
+                    }
+                    loadFavoriteList()
+                }
             }
             .setNegativeButton(R.string.btn_cancel, null)
             .show()
