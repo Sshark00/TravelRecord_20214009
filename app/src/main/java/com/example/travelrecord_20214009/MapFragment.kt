@@ -10,8 +10,9 @@ import androidx.lifecycle.lifecycleScope
 import com.naver.maps.geometry.LatLng
 import com.naver.maps.geometry.LatLngBounds
 import com.naver.maps.map.CameraUpdate
-import com.naver.maps.map.MapFragment as NaverMapFragment
+import com.naver.maps.map.MapView
 import com.naver.maps.map.NaverMap
+import com.naver.maps.map.NaverMapSdk
 import com.naver.maps.map.OnMapReadyCallback
 import com.naver.maps.map.overlay.Marker
 import kotlinx.coroutines.Dispatchers
@@ -22,6 +23,7 @@ class MapFragment : Fragment(), OnMapReadyCallback {
 
     private lateinit var dbHelper: DBHelper
     private lateinit var tvMapEmpty: TextView
+    private var mapView: MapView? = null
     private var naverMap: NaverMap? = null
     private val markers = mutableListOf<Marker>()
 
@@ -38,14 +40,19 @@ class MapFragment : Fragment(), OnMapReadyCallback {
 
         dbHelper = DBHelper(requireContext())
         tvMapEmpty = view.findViewById(R.id.tv_map_empty)
+        mapView = view.findViewById(R.id.map_view)
 
-        val mapFragment = childFragmentManager.findFragmentById(R.id.map_fragment) as? NaverMapFragment
-        if (mapFragment == null) {
-            tvMapEmpty.text = getString(R.string.error_map_unavailable)
-            tvMapEmpty.visibility = View.VISIBLE
-            return
-        }
-        mapFragment.getMapAsync(this)
+        NaverMapSdk.getInstance(requireContext()).onAuthFailedListener =
+            NaverMapSdk.OnAuthFailedListener {
+                if (!isAdded) return@OnAuthFailedListener
+                requireActivity().runOnUiThread {
+                    tvMapEmpty.text = getString(R.string.error_map_unavailable)
+                    tvMapEmpty.visibility = View.VISIBLE
+                }
+            }
+
+        mapView?.onCreate(savedInstanceState)
+        mapView?.getMapAsync(this)
     }
 
     override fun onMapReady(map: NaverMap) {
@@ -54,11 +61,37 @@ class MapFragment : Fragment(), OnMapReadyCallback {
         loadMarkers()
     }
 
+    override fun onStart() {
+        super.onStart()
+        mapView?.onStart()
+    }
+
     override fun onResume() {
         super.onResume()
+        mapView?.onResume()
         if (::dbHelper.isInitialized) {
             loadMarkers()
         }
+    }
+
+    override fun onPause() {
+        mapView?.onPause()
+        super.onPause()
+    }
+
+    override fun onStop() {
+        mapView?.onStop()
+        super.onStop()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        mapView?.onSaveInstanceState(outState)
+    }
+
+    override fun onLowMemory() {
+        super.onLowMemory()
+        mapView?.onLowMemory()
     }
 
     private fun loadMarkers() {
@@ -83,40 +116,47 @@ class MapFragment : Fragment(), OnMapReadyCallback {
                     markers.add(marker)
                 }
 
-                when {
-                    travels.isEmpty() -> {
-                        map.moveCamera(
-                            CameraUpdate.scrollAndZoomTo(LatLng(37.5665, 126.9780), 7.0)
-                        )
-                    }
-                    travels.size == 1 -> {
-                        val travel = travels.first()
-                        map.moveCamera(
-                            CameraUpdate.scrollAndZoomTo(
-                                LatLng(travel.latitude, travel.longitude),
-                                12.0
-                            )
-                        )
-                    }
-                    else -> {
-                        val positions = travels.map { LatLng(it.latitude, it.longitude) }
-                        try {
-                            val bounds = LatLngBounds.from(positions)
-                            map.moveCamera(CameraUpdate.fitBounds(bounds, 120))
-                        } catch (_: Exception) {
-                            val center = travels.first()
-                            map.moveCamera(
-                                CameraUpdate.scrollAndZoomTo(
-                                    LatLng(center.latitude, center.longitude),
-                                    8.0
-                                )
-                            )
-                        }
-                    }
+                mapView?.post {
+                    if (naverMap == null) return@post
+                    moveCameraToTravels(map, travels)
                 }
             } catch (_: Exception) {
                 tvMapEmpty.text = getString(R.string.error_load_failed)
                 tvMapEmpty.visibility = View.VISIBLE
+            }
+        }
+    }
+
+    private fun moveCameraToTravels(map: NaverMap, travels: List<TravelRecord>) {
+        when {
+            travels.isEmpty() -> {
+                map.moveCamera(
+                    CameraUpdate.scrollAndZoomTo(LatLng(37.5665, 126.9780), 7.0)
+                )
+            }
+            travels.size == 1 -> {
+                val travel = travels.first()
+                map.moveCamera(
+                    CameraUpdate.scrollAndZoomTo(
+                        LatLng(travel.latitude, travel.longitude),
+                        12.0
+                    )
+                )
+            }
+            else -> {
+                val positions = travels.map { LatLng(it.latitude, it.longitude) }
+                try {
+                    val bounds = LatLngBounds.from(positions)
+                    map.moveCamera(CameraUpdate.fitBounds(bounds, 120))
+                } catch (_: Exception) {
+                    val center = travels.first()
+                    map.moveCamera(
+                        CameraUpdate.scrollAndZoomTo(
+                            LatLng(center.latitude, center.longitude),
+                            8.0
+                        )
+                    )
+                }
             }
         }
     }
@@ -129,6 +169,8 @@ class MapFragment : Fragment(), OnMapReadyCallback {
     override fun onDestroyView() {
         clearMarkers()
         naverMap = null
+        mapView?.onDestroy()
+        mapView = null
         super.onDestroyView()
     }
 }
