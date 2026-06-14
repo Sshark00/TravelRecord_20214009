@@ -7,6 +7,7 @@ import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -61,6 +62,7 @@ class TravelDetailActivity : AppCompatActivity() {
             startActivity(intent)
         }
         btnFavorite.setOnClickListener { toggleFavorite() }
+        findViewById<MaterialButton>(R.id.btn_delete).setOnClickListener { showDeleteDialog() }
 
         loadRecord()
     }
@@ -113,6 +115,28 @@ class TravelDetailActivity : AppCompatActivity() {
         } else {
             btnFavorite.text = getString(R.string.btn_favorite_add)
             btnFavorite.setIconResource(R.drawable.ic_favorite_border)
+        }
+    }
+
+    private fun showDeleteDialog() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.dialog_delete_title)
+            .setMessage(getString(R.string.dialog_delete_message, tvTitle.text))
+            .setPositiveButton(R.string.btn_delete) { _, _ -> deleteRecord() }
+            .setNegativeButton(R.string.btn_cancel, null)
+            .show()
+    }
+
+    private fun deleteRecord() {
+        try {
+            val deleted = dbHelper.deleteTravel(recordId)
+            if (deleted > 0) {
+                finish()
+            } else {
+                Toast.makeText(this, R.string.error_record_not_found, Toast.LENGTH_SHORT).show()
+            }
+        } catch (_: Exception) {
+            Toast.makeText(this, R.string.error_save_failed, Toast.LENGTH_SHORT).show()
         }
     }
 

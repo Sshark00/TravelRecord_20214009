@@ -1,13 +1,20 @@
 package com.example.travelrecord_20214009
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.DatePickerDialog
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
+import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
 import android.media.ExifInterface
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.provider.MediaStore
 import android.widget.ImageView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
@@ -17,13 +24,17 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.lifecycle.lifecycleScope
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+import kotlin.coroutines.resume
 
 class TravelAddEditActivity : AppCompatActivity() {
 
@@ -39,6 +50,8 @@ class TravelAddEditActivity : AppCompatActivity() {
     private var latitude: Double = 0.0
     private var longitude: Double = 0.0
     private var cameraPhotoFile: File? = null
+    private var pendingLatitude: Double? = null
+    private var pendingLongitude: Double? = null
 
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
 
@@ -47,9 +60,7 @@ class TravelAddEditActivity : AppCompatActivity() {
     ) { success ->
         if (success) {
             cameraPhotoFile?.let { file ->
-                photoPath = file.absolutePath
-                extractGpsFromPath(photoPath)
-                bindPhoto()
+                onPhotoCaptured(file.absolutePath)
             }
         } else {
             Toast.makeText(this, R.string.error_camera_failed, Toast.LENGTH_SHORT).show()
@@ -65,9 +76,10 @@ class TravelAddEditActivity : AppCompatActivity() {
     }
 
     private val cameraPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val cameraGranted = permissions[Manifest.permission.CAMERA] == true
+        if (cameraGranted) {
             launchCamera()
         } else {
             Toast.makeText(this, R.string.error_permission_denied, Toast.LENGTH_SHORT).show()
@@ -130,10 +142,17 @@ class TravelAddEditActivity : AppCompatActivity() {
     }
 
     private fun requestCamera() {
-        when {
-            ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-                == PackageManager.PERMISSION_GRANTED -> launchCamera()
-            else -> cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        val permissions = mutableListOf(
+            Manifest.permission.CAMERA,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        )
+        val needRequest = permissions.any {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+        if (needRequest) {
+            cameraPermissionLauncher.launch(permissions.toTypedArray())
+        } else {
+            launchCamera()
         }
     }
 
@@ -161,6 +180,7 @@ class TravelAddEditActivity : AppCompatActivity() {
 
     private fun launchCamera() {
         try {
+            prefetchDeviceLocation()
             val file = createImageFile()
             cameraPhotoFile = file
             val uri = FileProvider.getUriForFile(
@@ -190,6 +210,141 @@ class TravelAddEditActivity : AppCompatActivity() {
             bindPhoto()
         } else {
             Toast.makeText(this, R.string.error_gallery_failed, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun onPhotoCaptured(path: String) {
+        photoPath = path
+        latitude = 0.0
+        longitude = 0.0
+        extractGpsFromPath(path)
+
+        if (latitude == 0.0 && longitude == 0.0) {
+            applyDeviceLocationForCamera()
+        } else {
+            bindPhoto()
+        }
+    }
+
+    private fun applyDeviceLocationForCamera() {
+        pendingLatitude?.let { lat ->
+            pendingLongitude?.let { lng ->
+                latitude = lat
+                longitude = lng
+                bindPhoto()
+                return
+            }
+        }
+
+        if (!hasLocationPermission()) {
+            bindPhoto()
+            return
+        }
+
+        val lastKnown = getLastKnownLocation()
+        if (lastKnown != null) {
+            latitude = lastKnown.latitude
+            longitude = lastKnown.longitude
+            bindPhoto()
+            return
+        }
+
+        lifecycleScope.launch {
+            val location = awaitCurrentLocation()
+            if (location != null) {
+                latitude = location.latitude
+                longitude = location.longitude
+            }
+            bindPhoto()
+        }
+    }
+
+    private fun prefetchDeviceLocation() {
+        pendingLatitude = null
+        pendingLongitude = null
+        if (!hasLocationPermission()) return
+
+        getLastKnownLocation()?.let { location ->
+            pendingLatitude = location.latitude
+            pendingLongitude = location.longitude
+            return
+        }
+
+        lifecycleScope.launch {
+            val location = awaitCurrentLocation()
+            if (location != null) {
+                pendingLatitude = location.latitude
+                pendingLongitude = location.longitude
+            }
+        }
+    }
+
+    private fun hasLocationPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun getLastKnownLocation(): Location? {
+        val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
+        return listOf(
+            LocationManager.GPS_PROVIDER,
+            LocationManager.NETWORK_PROVIDER
+        ).mapNotNull { provider ->
+            try {
+                locationManager.getLastKnownLocation(provider)
+            } catch (_: Exception) {
+                null
+            }
+        }.maxByOrNull { it.time }
+    }
+
+    @SuppressLint("MissingPermission")
+    private suspend fun awaitCurrentLocation(timeoutMs: Long = 8000L): Location? {
+        if (!hasLocationPermission()) return null
+
+        return suspendCancellableCoroutine { cont ->
+            val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
+            val handler = Handler(Looper.getMainLooper())
+            val listener = object : LocationListener {
+                override fun onLocationChanged(location: Location) {
+                    locationManager.removeUpdates(this)
+                    handler.removeCallbacksAndMessages(null)
+                    if (cont.isActive) cont.resume(location)
+                }
+            }
+
+            val providers = listOf(
+                LocationManager.GPS_PROVIDER,
+                LocationManager.NETWORK_PROVIDER
+            ).filter { locationManager.isProviderEnabled(it) }
+
+            if (providers.isEmpty()) {
+                cont.resume(null)
+                return@suspendCancellableCoroutine
+            }
+
+            providers.forEach { provider ->
+                locationManager.requestLocationUpdates(
+                    provider,
+                    0L,
+                    0f,
+                    listener,
+                    Looper.getMainLooper()
+                )
+            }
+
+            handler.postDelayed({
+                locationManager.removeUpdates(listener)
+                if (cont.isActive) cont.resume(null)
+            }, timeoutMs)
+
+            cont.invokeOnCancellation {
+                handler.removeCallbacksAndMessages(null)
+                locationManager.removeUpdates(listener)
+            }
         }
     }
 
@@ -227,8 +382,23 @@ class TravelAddEditActivity : AppCompatActivity() {
     }
 
     private fun extractGpsFromUri(uri: Uri) {
+        latitude = 0.0
+        longitude = 0.0
         try {
-            contentResolver.openInputStream(uri)?.use { input ->
+            val readUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+                ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_MEDIA_LOCATION)
+                == PackageManager.PERMISSION_GRANTED
+            ) {
+                try {
+                    MediaStore.setRequireOriginal(uri)
+                } catch (_: Exception) {
+                    uri
+                }
+            } else {
+                uri
+            }
+
+            contentResolver.openInputStream(readUri)?.use { input ->
                 val exif = ExifInterface(input)
                 val latLong = FloatArray(2)
                 if (exif.getLatLong(latLong)) {
