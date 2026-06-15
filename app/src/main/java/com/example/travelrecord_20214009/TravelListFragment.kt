@@ -2,7 +2,6 @@ package com.example.travelrecord_20214009
 
 import android.content.Intent
 import android.os.Bundle
-import android.view.ContextMenu
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuInflater
@@ -13,6 +12,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.PopupMenu
 import androidx.core.view.MenuProvider
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
@@ -28,12 +28,11 @@ class TravelListFragment : Fragment() {
 
     private lateinit var dbHelper: DBHelper
     private lateinit var recyclerView: RecyclerView
-    private lateinit var tvEmpty: TextView
+    private lateinit var emptyState: View
     private lateinit var progressLoading: View
     private lateinit var adapter: TravelAdapter
 
     private var sortOrder = "${DBHelper.COL_DATE} DESC"
-    private var contextRecord: TravelRecord? = null
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -48,10 +47,13 @@ class TravelListFragment : Fragment() {
 
         dbHelper = DBHelper(requireContext())
         recyclerView = view.findViewById(R.id.recycler_travel)
-        tvEmpty = view.findViewById(R.id.tv_empty)
+        emptyState = view.findViewById(R.id.empty_state)
         progressLoading = view.findViewById(R.id.progress_loading)
 
         val toolbar = view.findViewById<MaterialToolbar>(R.id.toolbar)
+        toolbar.title = getString(R.string.travel_list_title)
+        view.findViewById<TextView>(R.id.tv_header_subtitle).text =
+            getString(R.string.travel_list_subtitle)
         (requireActivity() as AppCompatActivity).setSupportActionBar(toolbar)
 
         requireActivity().addMenuProvider(object : MenuProvider {
@@ -88,9 +90,7 @@ class TravelListFragment : Fragment() {
             records = emptyList(),
             coroutineScope = viewLifecycleOwner.lifecycleScope,
             onItemClick = { record -> onTravelItemClick(record) },
-            onRegisterContextMenu = { itemView, _ ->
-                registerForContextMenu(itemView)
-            }
+            onItemLongClick = { anchor, record -> showContextMenu(anchor, record) }
         )
         recyclerView.adapter = adapter
 
@@ -101,28 +101,26 @@ class TravelListFragment : Fragment() {
         loadTravelList()
     }
 
-    override fun onCreateContextMenu(menu: ContextMenu, v: View, menuInfo: ContextMenu.ContextMenuInfo?) {
-        super.onCreateContextMenu(menu, v, menuInfo)
-        requireActivity().menuInflater.inflate(R.menu.context_travel, menu)
-        contextRecord = v.tag as? TravelRecord
-    }
-
-    override fun onContextItemSelected(item: MenuItem): Boolean {
-        val record = contextRecord ?: return false
-        return when (item.itemId) {
-            R.id.context_edit -> {
-                val intent = Intent(requireContext(), TravelAddEditActivity::class.java).apply {
-                    putExtra(TravelAddEditActivity.EXTRA_RECORD_ID, record.id)
+    private fun showContextMenu(anchor: View, record: TravelRecord) {
+        val popup = PopupMenu(requireContext(), anchor)
+        popup.menuInflater.inflate(R.menu.context_travel, popup.menu)
+        popup.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                R.id.context_edit -> {
+                    val intent = Intent(requireContext(), TravelAddEditActivity::class.java).apply {
+                        putExtra(TravelAddEditActivity.EXTRA_RECORD_ID, record.id)
+                    }
+                    startActivity(intent)
+                    true
                 }
-                startActivity(intent)
-                true
+                R.id.context_delete -> {
+                    showDeleteDialog(record)
+                    true
+                }
+                else -> false
             }
-            R.id.context_delete -> {
-                showDeleteDialog(record)
-                true
-            }
-            else -> false
         }
+        popup.show()
     }
 
     override fun onResume() {
@@ -140,7 +138,7 @@ class TravelListFragment : Fragment() {
                     dbHelper.getAllTravels(sortOrder)
                 }
                 adapter.updateList(records)
-                tvEmpty.visibility = if (records.isEmpty()) View.VISIBLE else View.GONE
+                emptyState.visibility = if (records.isEmpty()) View.VISIBLE else View.GONE
                 recyclerView.visibility = if (records.isEmpty()) View.GONE else View.VISIBLE
             } catch (_: Exception) {
                 Toast.makeText(requireContext(), R.string.error_load_failed, Toast.LENGTH_SHORT).show()

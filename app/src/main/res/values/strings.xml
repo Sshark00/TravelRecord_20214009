@@ -4,8 +4,11 @@
     <string name="nav_favorite">즐겨찾기</string>
     <string name="nav_map">지도</string>
     <string name="travel_list_title">여행 기록</string>
+    <string name="travel_list_subtitle">나만의 여행 이야기를 기록해보세요</string>
     <string name="favorite_list_title">즐겨찾기</string>
+    <string name="favorite_list_subtitle">마음에 드는 여행을 모아보세요</string>
     <string name="map_title">지도</string>
+    <string name="map_subtitle">여행지를 한눈에 확인하세요</string>
     <string name="travel_list_empty">등록된 여행 기록이 없습니다.</string>
     <string name="thumbnail_desc">여행 대표 사진</string>
     <string name="travel_item_clicked">%1$s</string>

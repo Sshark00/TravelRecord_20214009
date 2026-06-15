@@ -20,7 +20,7 @@ class TravelAdapter(
     private var records: List<TravelRecord>,
     private val coroutineScope: CoroutineScope,
     private val onItemClick: (TravelRecord) -> Unit,
-    private val onRegisterContextMenu: (View, TravelRecord) -> Unit
+    private val onItemLongClick: (View, TravelRecord) -> Unit
 ) : RecyclerView.Adapter<TravelAdapter.TravelViewHolder>() {
 
     private val loadingJobs = mutableMapOf<TravelViewHolder, Job>()
@@ -44,8 +44,10 @@ class TravelAdapter(
         holder.tvDate.text = record.date
         bindThumbnail(holder, record.photoPath)
         holder.itemView.setOnClickListener { onItemClick(record) }
-        holder.itemView.tag = record
-        onRegisterContextMenu(holder.itemView, record)
+        holder.itemView.setOnLongClickListener { view ->
+            onItemLongClick(view, record)
+            true
+        }
     }
 
     override fun onViewRecycled(holder: TravelViewHolder) {

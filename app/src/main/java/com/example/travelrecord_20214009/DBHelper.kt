@@ -73,13 +73,13 @@ class DBHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null
     }
 
     // READ - 즐겨찾기 목록
-    fun getFavoriteTravels(): List<TravelRecord> {
+    fun getFavoriteTravels(orderBy: String = "$COL_DATE DESC"): List<TravelRecord> {
         val list = mutableListOf<TravelRecord>()
         val db = readableDatabase
         val cursor = db.query(
             TABLE_NAME, null,
             "$COL_IS_FAVORITE = 1", null, null, null,
-            "$COL_DATE DESC"
+            orderBy
         )
         cursor.use {
             while (it.moveToNext()) {
